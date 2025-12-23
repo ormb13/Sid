@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Sid’s Birthday</title>
+
+  <!-- ✅ Stable chess libs via cdnjs (most reliable for GitHub Pages) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#071022; --glass: rgba(0,0,0,.30);
+      --text:#fff; --muted: rgba(255,255,255,.80);
+      --shadow: 0 26px 100px rgba(0,0,0,.55);
+      --warm: rgba(255,220,140,.95); --rose: rgba(255,120,170,.95);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background:var(--bg); color:var(--text); overflow:hidden;}
+    canvas{display:block}
+
+    /* INTRO */
+    #intro{position:fixed; inset:0; opacity:1; transition: opacity .7s ease;}
+    #bgCanvas{position:absolute; inset:0; width:100%; height:100%;}
+    #fxCanvas{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; mix-blend-mode: screen;}
+    .overlay{position:absolute; inset:0; pointer-events:none;}
+    .poppyWrap{position:absolute; left:58%; bottom:18%; width:min(360px, 44vw);
+      transform: translateX(-50%); filter: drop-shadow(0 26px 55px rgba(0,0,0,.30)); opacity:.99;}
+    .beeBtn{position:absolute; left:58%; bottom:34%; width:min(190px, 24vw);
+      transform: translateX(-50%) rotate(-2deg); pointer-events:auto; cursor:pointer; user-select:none;
+      filter: drop-shadow(0 22px 45px rgba(0,0,0,.32)); transition: transform .18s ease, filter .18s ease;}
+    .beeBtn:hover{transform: translateX(-50%) rotate(-2deg) scale(1.04); filter: drop-shadow(0 28px 65px rgba(0,0,0,.40));}
+
+    #birthdayBtn{
+      position:absolute; left:50%; top:48%;
+      transform: translate(-50%, -50%) scale(.98);
+      padding: 16px 18px; border-radius: 22px;
+      background: var(--glass); border: 1px solid rgba(255,255,255,.16);
+      box-shadow: var(--shadow); backdrop-filter: blur(14px);
+      font-size: clamp(22px, 3.3vw, 46px); font-weight: 950; text-align:center;
+      opacity:0; pointer-events:none;
+      transition: opacity .45s ease, transform .45s ease;
+      z-index: 10;
+    }
+    #birthdayBtn.show{opacity:1; pointer-events:auto; transform: translate(-50%, -50%) scale(1);}
+    #birthdayBtn small{display:block; margin-top:8px; font-size:13px; font-weight:750; color: rgba(255,255,255,.88);}
+
+    /* CHESS */
+    #chessScreen{
+      position:fixed; inset:0; display:none; opacity:0; transition: opacity .7s ease;
+      background:
+        radial-gradient(900px 700px at 20% 20%, rgba(255,255,255,.07), transparent 60%),
+        radial-gradient(900px 700px at 80% 18%, rgba(255,220,140,.08), transparent 62%),
+        linear-gradient(180deg, #071022 0%, #0b1633 55%, #061029 100%);
+      overflow:auto; padding: 18px;
+    }
+    .wrap{max-width: 1120px; margin:0 auto; display:grid; grid-template-columns: 460px 1fr; gap:18px;}
+    .panel{border:1px solid rgba(255,255,255,.12); border-radius: 20px; background: rgba(255,255,255,.06);
+      box-shadow: var(--shadow); padding:14px; backdrop-filter: blur(10px);}
+    .panel h2{margin:4px 0 8px; font-size:20px}
+    .panel p{margin:8px 0; color: rgba(255,255,255,.88); line-height:1.55}
+    .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+    .pill{padding:8px 10px; border-radius:999px; background: rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.12);
+      font-weight: 850; font-size: 13px;}
+    #board{width:100%; max-width: 600px; margin:0 auto; border-radius:14px; overflow:hidden;
+      box-shadow: 0 18px 70px rgba(0,0,0,.38); background: rgba(0,0,0,.18);}
+    #errorBox{display:none; margin-top:10px; padding:12px; border-radius:16px;
+      border:1px solid rgba(255,120,170,.35); background: rgba(255,120,170,.11);
+      font-weight: 850; white-space: pre-wrap;}
+
+    /* WIN OVERLAY */
+    #winOverlay{position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:18px;
+      background: rgba(0,0,0,.64); z-index: 999;}
+    .winCard{width: min(920px, 100%); border-radius: 24px; border:1px solid rgba(255,255,255,.14);
+      background:
+        radial-gradient(900px 320px at 30% 10%, rgba(255,220,140,.22), transparent 65%),
+        radial-gradient(900px 320px at 80% 10%, rgba(255,120,170,.18), transparent 65%),
+        linear-gradient(180deg, rgba(18,26,51,.96), rgba(10,16,38,.94));
+      box-shadow: 0 34px 140px rgba(0,0,0,.70); overflow:hidden;}
+    .winHeader{display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.10);}
+    .winHeader h3{margin:0; font-size:18px}
+    .close{border:1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); color:#fff;
+      padding:8px 10px; border-radius: 12px; cursor:pointer; font-weight: 950;}
+    .winBody{padding: 16px; line-height: 1.72; color: rgba(255,255,255,.94);
+      max-height: min(74vh, 680px); overflow:auto;}
+    .sig{margin-top:14px; font-weight:950}
+
+    @media (max-width: 1020px){ .wrap{grid-template-columns: 1fr;} }
+  </style>
+</head>
+
+<body>
+  <!-- INTRO -->
+  <section id="intro">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="fxCanvas"></canvas>
+
+    <div class="overlay">
+      <!-- Poppy -->
+      <div class="poppyWrap" aria-hidden="true">
+        <svg viewBox="0 0 520 520" width="100%" height="100%">
+          <defs>
+            <radialGradient id="petal" cx="40%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#ffb1b1"/>
+              <stop offset="45%" stop-color="#ff3b3b"/>
+              <stop offset="100%" stop-color="#a30a0a"/>
+            </radialGradient>
+            <radialGradient id="petal2" cx="60%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#ffc1c1"/>
+              <stop offset="45%" stop-color="#ff2c2c"/>
+              <stop offset="100%" stop-color="#8f0707"/>
+            </radialGradient>
+            <linearGradient id="stem" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#3ac58a"/>
+              <stop offset="100%" stop-color="#196a48"/>
+            </linearGradient>
+            <radialGradient id="center" cx="35%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#3b1b1b"/>
+              <stop offset="70%" stop-color="#140606"/>
+              <stop offset="100%" stop-color="#070202"/>
+            </radialGradient>
+          </defs>
+          <path d="M265 510 C260 430, 276 380, 280 330 C285 260, 260 210, 255 150"
+                fill="none" stroke="url(#stem)" stroke-width="14" stroke-linecap="round"/>
+          <g transform="translate(260 210)">
+            <path d="M0 0 C-90 -70,-170 -15,-120 85 C-80 165,-5 155,0 125 C5 155,80 165,120 85 C170 -15,90 -70,0 0Z"
+                  fill="url(#petal)" opacity="0.97"/>
+            <path d="M0 0 C-80 -90,-185 -45,-150 70 C-120 170,-10 165,0 135 C10 165,120 170,150 70 C185 -45,80 -90,0 0Z"
+                  fill="url(#petal2)" opacity="0.86" transform="rotate(26)"/>
+            <path d="M0 0 C-80 -90,-185 -45,-150 70 C-120 170,-10 165,0 135 C10 165,120 170,150 70 C185 -45,80 -90,0 0Z"
+                  fill="url(#petal2)" opacity="0.86" transform="rotate(-26)"/>
+            <circle r="38" fill="url(#center)"/>
+            <circle r="50" fill="none" stroke="rgba(0,0,0,.22)" stroke-width="18"/>
+          </g>
+          <path d="M140 220 C190 170, 235 150, 280 160"
+                stroke="rgba(255,255,255,.18)" stroke-width="8" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+
+      <!-- Bee -->
+      <div class="beeBtn" id="bee" title="🐝">
+        <svg viewBox="0 0 560 300" width="100%" height="100%">
+          <defs>
+            <radialGradient id="beeGlow" cx="50%" cy="50%" r="60%">
+              <stop offset="0%" stop-color="rgba(255,235,160,.55)"/>
+              <stop offset="100%" stop-color="rgba(255,235,160,0)"/>
+            </radialGradient>
+            <linearGradient id="beeBody" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#ffe58f"/>
+              <stop offset="55%" stop-color="#ffd04f"/>
+              <stop offset="100%" stop-color="#eeb03a"/>
+            </linearGradient>
+            <linearGradient id="wing" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="rgba(255,255,255,.94)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,.40)"/>
+            </linearGradient>
+          </defs>
+
+          <ellipse cx="310" cy="168" rx="220" ry="110" fill="url(#beeGlow)"/>
+          <g id="wings">
+            <path d="M250 78 C170 35, 120 110, 175 150 C220 180, 272 150, 290 118 C282 98, 270 86, 250 78Z"
+                  fill="url(#wing)" stroke="rgba(0,0,0,.10)" stroke-width="4"/>
+            <path d="M330 64 C262 25, 210 92, 250 140 C285 182, 345 170, 380 132 C365 98, 350 76, 330 64Z"
+                  fill="url(#wing)" stroke="rgba(0,0,0,.10)" stroke-width="4" opacity=".92"/>
+          </g>
+
+          <g>
+            <ellipse cx="325" cy="182" rx="160" ry="84" fill="url(#beeBody)" stroke="rgba(0,0,0,.28)" stroke-width="6"/>
+            <path d="M260 104 C230 144,230 212,260 252" stroke="rgba(18,18,18,.86)" stroke-width="28" stroke-linecap="round" opacity=".92"/>
+            <path d="M312 94 C278 142,278 222,312 270" stroke="rgba(18,18,18,.86)" stroke-width="28" stroke-linecap="round" opacity=".92"/>
+            <path d="M366 98 C336 150,336 220,368 270" stroke="rgba(18,18,18,.86)" stroke-width="28" stroke-linecap="round" opacity=".92"/>
+          </g>
+
+          <g>
+            <circle cx="165" cy="192" r="58" fill="rgba(18,18,18,.94)" stroke="rgba(0,0,0,.35)" stroke-width="6"/>
+            <circle cx="148" cy="180" r="11" fill="rgba(255,255,255,.75)"/>
+            <circle cx="182" cy="180" r="9" fill="rgba(255,255,255,.55)"/>
+            <path d="M150 138 C125 95, 90 92, 76 110" fill="none" stroke="rgba(18,18,18,.90)" stroke-width="9" stroke-linecap="round"/>
+            <path d="M182 138 C165 92, 130 75, 110 92" fill="none" stroke="rgba(18,18,18,.90)" stroke-width="9" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div id="birthdayBtn">
+      Happy Birthday my amazing Sid!
+      <small>(tap me)</small>
+    </div>
+  </section>
+
+  <!-- CHESS -->
+  <section id="chessScreen">
+    <div class="wrap">
+      <div class="panel">
+        <h2>For your brilliant mind ♟️</h2>
+        <p>
+          Play as <strong>White</strong>. Make <strong>7 moves</strong>.
+          No spoilers — just a game… and something waiting after.
+        </p>
+
+        <div class="row">
+          <div class="pill">Turn: <span id="turn">—</span></div>
+          <div class="pill">Status: <span id="status">—</span></div>
+          <div class="pill">White moves: <span id="moveCount">0</span>/7</div>
+        </div>
+
+        <div id="errorBox"></div>
+
+        <p style="margin-top:12px; color: var(--muted);">
+          If a move feels “too expensive”, try another idea 🙂
+        </p>
+      </div>
+
+      <div class="panel">
+        <div id="board"></div>
+        <p style="text-align:center; margin-top:10px; color: rgba(255,255,255,.82)">
+          (Drag pieces to move)
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WIN OVERLAY -->
+  <div id="winOverlay">
+    <div class="winCard">
+      <div class="winHeader">
+        <h3>Surprise 💛</h3>
+        <button class="close" id="closeWin">Close</button>
+      </div>
+      <div class="winBody" id="winBody"></div>
+    </div>
+  </div>
+
+<script>
+/* ---------------- Utilities ---------------- */
+const $id = (id)=>document.getElementById(id);
+const rand = (min,max)=>Math.random()*(max-min)+min;
+
+/* ---------------- Background + FX (kept lightweight) ---------------- */
+const bgCanvas = $id("bgCanvas");
+const fxCanvas = $id("fxCanvas");
+const bg = bgCanvas.getContext("2d");
+const fx = fxCanvas.getContext("2d");
+
+let W=0,H=0,dpr=1;
+function fitCanvas(c){
+  dpr = window.devicePixelRatio || 1;
+  W = c.clientWidth; H = c.clientHeight;
+  c.width = Math.floor(W*dpr); c.height = Math.floor(H*dpr);
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function resize(){ fitCanvas(bgCanvas); fitCanvas(fxCanvas); paintBackground(); }
+window.addEventListener("resize", resize);
+
+const clouds = [
+  {x:0.18, y:0.18, s:1.00, v:0.0050},
+  {x:0.60, y:0.22, s:0.78, v:0.0036},
+  {x:0.42, y:0.12, s:0.62, v:0.0030},
+];
+
+function paintBackground(){
+  const sky = bg.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0, "#74d6ff");
+  sky.addColorStop(0.36, "#a9ecff");
+  sky.addColorStop(0.70, "#ecfbff");
+  sky.addColorStop(1, "#bff6da");
+  bg.fillStyle = sky; bg.fillRect(0,0,W,H);
+
+  const sx=W*0.12, sy=H*0.14;
+  const sun = bg.createRadialGradient(sx,sy,10,sx,sy,Math.max(W,H)*0.30);
+  sun.addColorStop(0, "rgba(255,255,255,.95)");
+  sun.addColorStop(0.12, "rgba(255,252,210,.74)");
+  sun.addColorStop(0.30, "rgba(255,218,120,.40)");
+  sun.addColorStop(1, "rgba(255,218,120,0)");
+  bg.fillStyle=sun; bg.fillRect(0,0,W,H);
+
+  function hill(yBase, amp, a, b, alpha){
+    const g = bg.createLinearGradient(0,yBase-amp,0,yBase+amp);
+    g.addColorStop(0,a); g.addColorStop(1,b);
+    bg.fillStyle=g; bg.globalAlpha=alpha;
+    bg.beginPath();
+    bg.moveTo(0,H); bg.lineTo(0,yBase);
+    const steps=10;
+    for(let i=0;i<=steps;i++){
+      const x=(i/steps)*W;
+      const y=yBase + Math.sin((i/steps)*Math.PI*1.2)*amp*(0.76+0.24*Math.cos(i));
+      bg.quadraticCurveTo(x - W/(steps*2), y, x, y);
+    }
+    bg.lineTo(W,H); bg.closePath(); bg.fill();
+    bg.globalAlpha=1;
+  }
+  hill(H*0.62, H*0.06, "#83e5b4", "#3aa26f", .92);
+  hill(H*0.71, H*0.10, "#5bd89c", "#1c744f", .96);
+
+  const field = bg.createLinearGradient(0,H*0.55,0,H);
+  field.addColorStop(0,"rgba(0,0,0,0)");
+  field.addColorStop(1,"rgba(0,0,0,.46)");
+  bg.fillStyle=field; bg.fillRect(0,H*0.55,W,H*0.45);
+}
+
+function drawCloud(x,y,scale){
+  bg.save();
+  bg.translate(x,y); bg.scale(scale,scale);
+  bg.globalAlpha=0.92; bg.fillStyle="rgba(255,255,255,.90)";
+  const blobs=[
+    {x:0,y:18,r:34},{x:42,y:8,r:42},{x:88,y:18,r:36},
+    {x:62,y:32,r:46},{x:122,y:30,r:34},{x:150,y:24,r:28},
+  ];
+  bg.beginPath();
+  blobs.forEach((b)=>{ bg.moveTo(b.x+b.r,b.y); bg.arc(b.x,b.y,b.r,0,Math.PI*2); });
+  bg.closePath(); bg.fill();
+  bg.restore(); bg.globalAlpha=1;
+}
+
+let lastT = performance.now();
+function animateBackground(t){
+  const dt=Math.min(0.05,(t-lastT)/1000);
+  lastT=t;
+  paintBackground();
+  clouds.forEach((c,i)=>{
+    c.x=(c.x + c.v*dt) % 1.35;
+    const x=(c.x - 0.15)*W;
+    const y=(0.10 + i*0.055 + Math.sin(t/2200 + i)*0.008)*H;
+    drawCloud(x,y,c.s*(0.92+0.08*Math.sin(t/3600+i)));
+  });
+  requestAnimationFrame(animateBackground);
+}
+
+/* ---------------- Fibonacci FX ---------------- */
+const GOLDEN = 2.399963229728653;
+const particles = [];
+function spawnParticle(x,y,kind,energy){
+  const a=rand(0,Math.PI*2), speed=rand(0.25,1.25)+energy;
+  particles.push({x,y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed-rand(0.15,0.9),
+    life:rand(1.6,3.4),t:0,size:rand(4,14)+energy*2.5,kind,rot:rand(-.9,.9),spin:rand(-.06,.06),
+    glow:rand(12,28),alpha:rand(0.55,0.92)});
+}
+function drawHeart(ctx,x,y,r,rot=0){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+  ctx.beginPath();
+  const s=r;
+  ctx.moveTo(0, s*0.40);
+  ctx.bezierCurveTo(0, -s*0.2, -s, -s*0.15, -s, s*0.35);
+  ctx.bezierCurveTo(-s, s*0.85, 0, s*1.05, 0, s*1.25);
+  ctx.bezierCurveTo(0, s*1.05, s, s*0.85, s, s*0.35);
+  ctx.bezierCurveTo(s, -s*0.15, 0, -s*0.2, 0, s*0.40);
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function fib(n){ const s=[1,1]; while(s.length<n) s.push(s[s.length-1]+s[s.length-2]); return s; }
+
+function runFibonacciBloom(anchorX, anchorY){
+  const seq=fib(18);
+  const baseMs=52; let acc=0;
+  const maxR=Math.min(W,H)*0.70;
+
+  seq.forEach((f,k)=>{
+    acc += f*baseMs;
+    setTimeout(()=>{
+      const r = Math.min(maxR, 14 + (k*k)*(maxR/(seq.length*seq.length)));
+      const ang = k*GOLDEN;
+      const cx = anchorX + Math.cos(ang)*r;
+      const cy = anchorY + Math.sin(ang)*r;
+      const burst = 5 + Math.floor(k/2);
+      for(let i=0;i<burst;i++) spawnParticle(cx+rand(-10,10), cy+rand(-10,10), "light", k*0.03);
+      for(let i=0;i<Math.max(2,Math.floor(k/2));i++) spawnParticle(cx+rand(-12,12), cy+rand(-12,12), "heart", k*0.02);
+    }, acc);
+  });
+
+  // ambient shimmer
+  setTimeout(()=>{
+    const ambient=setInterval(()=>{
+      spawnParticle(rand(0,W), rand(0,H), (Math.random()>.52?"light":"heart"), 0.18);
+    }, 110);
+    setTimeout(()=> clearInterval(ambient), 6500);
+  }, acc + 420);
+}
+
+function animateFX(){
+  fx.clearRect(0,0,W,H);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.t += 1/60;
+    const u=p.t/p.life;
+    if(u>=1){ particles.splice(i,1); continue; }
+    p.x += p.vx*1.25; p.y += p.vy*1.25; p.vy += 0.008; p.rot += p.spin;
+
+    const a=(1-u)*p.alpha;
+    fx.globalAlpha=a;
+    fx.shadowBlur=p.glow;
+    fx.shadowColor="rgba(255,220,140,.55)";
+
+    if(p.kind==="light"){
+      fx.fillStyle="rgba(255,220,140,.95)";
+      fx.beginPath(); fx.arc(p.x,p.y,p.size*0.52,0,Math.PI*2); fx.fill();
+    }else{
+      fx.fillStyle="rgba(255,120,170,.95)";
+      drawHeart(fx,p.x,p.y,p.size*0.56,p.rot);
+    }
+  }
+  fx.globalAlpha=1; fx.shadowBlur=0;
+  requestAnimationFrame(animateFX);
+}
+
+/* ---------------- Intro interactions ---------------- */
+const intro = $id("intro");
+const bee = $id("bee");
+const birthdayBtn = $id("birthdayBtn");
+const chessScreen = $id("chessScreen");
+
+let beeClicked=false;
+bee.addEventListener("click", ()=>{
+  if(beeClicked) return;
+  beeClicked=true;
+  const r=bee.getBoundingClientRect();
+  runFibonacciBloom(r.left + r.width*0.58, r.top + r.height*0.40);
+  birthdayBtn.classList.add("show");
+});
+
+birthdayBtn.addEventListener("click", ()=>{
+  intro.style.opacity="0";
+  setTimeout(()=>{
+    intro.style.display="none";
+    chessScreen.style.display="block";
+    requestAnimationFrame(()=> chessScreen.style.opacity="1");
+
+    // ✅ IMPORTANT: initialize chess AFTER screen is visible
+    setTimeout(initChess, 350);
+  }, 720);
+});
+
+/* ---------------- Chess (7-move goal) ---------------- */
+let game=null, board=null;
+let whiteMoves=0;
+const GOAL=7;
+
+const statusEl=$id("status");
+const turnEl=$id("turn");
+const moveCountEl=$id("moveCount");
+const errorBox=$id("errorBox");
+
+function showError(msg){
+  errorBox.style.display="block";
+  errorBox.textContent=msg;
+}
+function setStatus(msg){
+  statusEl.textContent=msg;
+  turnEl.textContent = game ? (game.turn()==="w" ? "White" : "Black") : "—";
+  moveCountEl.textContent = String(whiteMoves);
+}
+
+function evaluateMaterial(g){
+  const v={p:1,n:3,b:3.25,r:5,q:9,k:0};
+  let s=0;
+  for(const row of g.board()){
+    for(const p of row){
+      if(!p) continue;
+      const val=v[p.type]||0;
+      s += (p.color==="w") ? val : -val;
+    }
+  }
+  return s;
+}
+
+function chooseBlackMove(){
+  const moves=game.moves({verbose:true});
+  if(!moves.length) return null;
+
+  // “human-ish”: capture if free, else random-ish safe
+  // (keeps it playable and beatable)
+  let best=null;
+  let bestScore=Infinity;
+
+  for(const m of moves){
+    game.move(m);
+    const sc=evaluateMaterial(game) + (Math.random()-0.5)*0.4; // noise
+    game.undo();
+    if(sc < bestScore){
+      bestScore=sc;
+      best=m;
+    }
+  }
+  return best;
+}
+
+// starting position: White advantage, not obvious
+const START_FEN="r3k2r/pp1n1ppp/2p1pn2/2b5/2B1P3/2N2N2/PPPQ1PPP/R3K2R w KQkq - 2 10";
+
+function initChess(){
+  try{
+    // sanity check: libraries must exist
+    if(typeof Chess === "undefined") throw new Error("chess.js not available");
+    if(typeof Chessboard === "undefined") throw new Error("chessboard.js not available");
+    if(typeof $ === "undefined") throw new Error("jQuery not available");
+
+    game = new Chess(START_FEN);
+    whiteMoves = 0;
+
+    board = Chessboard("board",{
+      position: START_FEN,
+      draggable:true,
+      pieceTheme: "https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/{piece}.png",
+      onDragStart: (source, piece)=>{
+        if(game.game_over()) return false;
+        if(game.turn() !== "w") return false;
+        if(piece.startsWith("b")) return false;
+      },
+      onDrop: (source, target)=>{
+        const move = game.move({from:source, to:target, promotion:"q"});
+        if(move===null) return "snapback";
+
+        if(move.color === "w") whiteMoves++;
+        board.position(game.fen(), true);
+
+        // immediate end?
+        if(game.in_checkmate()){
+          handleWin("Checkmate.");
+          return;
+        }
+
+        // 7-move goal: after 7 white moves, black may resign (surprise)
+        if(whiteMoves >= GOAL){
+          // If white isn't losing badly, black resigns
+          const mat = evaluateMaterial(game);
+          if(mat > -2){
+            handleWin("Black resigns.");
+            return;
+          }
+          // if somehow losing, allow a couple more moves quietly
+        }
+
+        setStatus("Black thinking…");
+
+        setTimeout(()=>{
+          const bm = chooseBlackMove();
+          if(!bm){
+            if(game.in_checkmate()) handleWin("Checkmate.");
+            else setStatus("Game over.");
+            return;
+          }
+          game.move(bm);
+          board.position(game.fen(), true);
+
+          if(game.in_checkmate()){
+            handleWin("Checkmate.");
+            return;
+          }
+          setStatus("In progress");
+        }, 520);
+
+        setStatus("In progress");
+      }
+    });
+
+    // Ensure proper sizing after render
+    setTimeout(()=> board.resize(), 150);
+
+    setStatus("In progress");
+  }catch(e){
+    showError("Chess failed to initialize.\n\nDetails: " + (e && e.message ? e.message : String(e)));
+    setStatus("Error");
+  }
+}
+
+/* ---------------- Win overlay + love letter ---------------- */
+const winOverlay=$id("winOverlay");
+const winBody=$id("winBody");
+$id("closeWin").addEventListener("click", ()=> winOverlay.style.display="none");
+
+function handleWin(reason){
+  setStatus("WIN 🎉");
+
+  // celebration burst
+  for(let i=0;i<220;i++){
+    spawnParticle(rand(0,W), rand(0,H), (Math.random()>.52?"light":"heart"), 0.26);
+  }
+
+  winBody.innerHTML = `
+    <p style="font-weight:950; font-size:18px; margin-top:0">
+      ${reason} …and now your real surprise 💛
+    </p>
+
+    <p><strong>My darling, dearest Sid,</strong></p>
+
+    <p>Some souls enter our lives like moments. Others arrive like memory — as if they have always known the shape of us.</p>
+
+    <p>You came into my life like light remembering its way back to a room it once lived in. Something in me recognized you before I understood why. And for meeting you, for knowing you, for sharing this brief and miraculous stretch of time with you, I will always be grateful.</p>
+
+    <p>There is a quiet sacredness in the way you exist. A gentleness that does not announce itself. A kindness that asks for nothing in return. Your presence carries warmth — a steady inner light — one that could soften even the coldest, most forgotten place and teach it how to feel like home again.</p>
+
+    <p><strong>And then there is your mind.</strong></p>
+
+    <p>Your brilliant, searching, endlessly alive mind — the way it moves through the world with curiosity and depth, the way it questions, builds, analyzes, imagines. You don’t just think — you <em>see</em>. You don’t just learn — you <em>understand</em>. Your intelligence is not loud or performative; it is precise, layered, and quietly powerful. Watching your mind at work feels like witnessing something rare — a constellation slowly arranging itself into meaning.</p>
+
+    <p>You are loved exactly as you are. Not for what you accomplish. Not for what you prove. But for the simple, extraordinary truth that you exist.</p>
+
+    <p>I am here. I am not leaving. I choose you — not once, but continually.</p>
+
+    <p class="sig"><strong>Forever yours,</strong><br><strong>Olgu</strong></p>
+  `;
+
+  winOverlay.style.display="flex";
+}
+
+/* ---------------- Boot ---------------- */
+resize();
+requestAnimationFrame(animateBackground);
+requestAnimationFrame(animateFX);
+</script>
+</body>
+</html>
